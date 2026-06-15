@@ -5,6 +5,11 @@ import time
 import requests
 import yfinance as yf
 from datetime import date, timedelta, datetime
+try:
+    from zoneinfo import ZoneInfo
+except ImportError:
+    import pytz as tz
+    ZoneInfo = lambda x: tz.timezone(x)
 import json
 import os
 
@@ -221,7 +226,7 @@ def process_scanner_data(live_list):
     return top_6, all_data
 
 def is_market_open():
-    now = datetime.now()
+    now = datetime.now(ZoneInfo("Asia/Kolkata"))
     if now.weekday() >= 5: return False
     start_time = datetime.strptime("09:15", "%H:%M").time()
     end_time = datetime.strptime("15:30", "%H:%M").time()
@@ -240,11 +245,11 @@ def run_engine():
     
     while True:
         if not is_market_open():
-            print(f"[{datetime.now()}] Market closed. Sleeping for 5 minutes...")
+            print(f"[{datetime.now(ZoneInfo('Asia/Kolkata'))}] Market closed. Sleeping for 5 minutes...")
             time.sleep(300)
             continue
             
-        print(f"[{datetime.now()}] Fetching data...")
+        print(f"[{datetime.now(ZoneInfo('Asia/Kolkata'))}] Fetching data...")
         try:
             live_data, session = get_real_nse_data()
             if not live_data:
@@ -270,10 +275,10 @@ def run_engine():
                         stocks_str = ", ".join(new_entries)
                         msg = f"🚀 New in Today's Top 10: {stocks_str}"
                         send_telegram(msg)
-                        notification_history.append(f"[{datetime.now().strftime('%H:%M:%S')}] {msg}")
+                        notification_history.append(f"[{datetime.now(ZoneInfo('Asia/Kolkata')).strftime('%H:%M:%S')}] {msg}")
                 prev_top_10 = current_top_10
                 
-                current_time = datetime.now().time()
+                current_time = datetime.now(ZoneInfo('Asia/Kolkata')).time()
                 start_time = datetime.strptime("09:25", "%H:%M").time()
                 scanner_active = current_time >= start_time
                 
@@ -316,11 +321,11 @@ def run_engine():
                             stocks_str = ", ".join(new_brk)
                             msg = f"🔥 NEW BREAKOUT ALERT: {stocks_str} crossed PDH/PDL!"
                             send_telegram(msg)
-                            notification_history.append(f"[{datetime.now().strftime('%H:%M:%S')}] {msg}")
+                            notification_history.append(f"[{datetime.now(ZoneInfo('Asia/Kolkata')).strftime('%H:%M:%S')}] {msg}")
                     prev_brk = current_brk
                     
             state = {
-                'timestamp': datetime.now().strftime('%H:%M:%S'),
+                'timestamp': datetime.now(ZoneInfo('Asia/Kolkata')).strftime('%H:%M:%S'),
                 'sector_df': sector_df.to_dict('records') if not sector_df.empty else [],
                 'gainers_df': gainers_df.to_dict('records') if not gainers_df.empty else [],
                 'losers_df': losers_df.to_dict('records') if not losers_df.empty else [],

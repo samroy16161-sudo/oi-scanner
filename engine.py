@@ -30,43 +30,51 @@ def send_telegram(message):
         print(f"Telegram Error: {e}")
 
 def init_db():
-    conn = sqlite3.connect(DB_NAME)
-    cursor = conn.cursor()
-    cursor.execute('''CREATE TABLE IF NOT EXISTS historical_spurt (date TEXT, stock_name TEXT, spurt_pct REAL, PRIMARY KEY (date, stock_name))''')
-    conn.commit()
-    conn.close()
+    try:
+        conn = sqlite3.connect(DB_NAME, timeout=15)
+        cursor = conn.cursor()
+        cursor.execute('''CREATE TABLE IF NOT EXISTS historical_spurt (date TEXT, stock_name TEXT, spurt_pct REAL, PRIMARY KEY (date, stock_name))''')
+        conn.commit()
+        conn.close()
+    except Exception as e:
+        print(f"DB Init Error: {e}")
 
 def maintain_rolling_window():
-    conn = sqlite3.connect(DB_NAME)
-    cursor = conn.cursor()
-    cursor.execute("SELECT DISTINCT date FROM historical_spurt ORDER BY date DESC")
-    dates = cursor.fetchall()
-    if len(dates) > 4:
-        dates_to_keep = [d[0] for d in dates[:4]]
-        placeholders = ','.join(['?'] * len(dates_to_keep))
-        cursor.execute(f"DELETE FROM historical_spurt WHERE date NOT IN ({placeholders})", dates_to_keep)
-        conn.commit()
-    conn.close()
+    try:
+        conn = sqlite3.connect(DB_NAME, timeout=15)
+        cursor = conn.cursor()
+        cursor.execute("SELECT DISTINCT date FROM historical_spurt ORDER BY date DESC")
+        dates = cursor.fetchall()
+        if len(dates) > 4:
+            dates_to_keep = [d[0] for d in dates[:4]]
+            placeholders = ','.join(['?'] * len(dates_to_keep))
+            cursor.execute(f"DELETE FROM historical_spurt WHERE date NOT IN ({placeholders})", dates_to_keep)
+            conn.commit()
+        conn.close()
+    except: pass
 
 def save_eod_data(live_list: list):
-    if not live_list: return
-    live_df = pd.DataFrame([{'stock_name': x['symbol'], 'nse_spurt_pct': x.get('avgInOI', 0)} for x in live_list if x.get('symbol') not in ['NIFTY', 'BANKNIFTY', 'FINNIFTY']])
-    if live_df.empty: return
-    today_str = date.today().strftime('%Y-%m-%d')
-    conn = sqlite3.connect(DB_NAME)
-    eod_df = live_df.rename(columns={'nse_spurt_pct': 'spurt_pct'})
-    eod_df['date'] = today_str
-    for _, row in eod_df.iterrows():
-        cursor = conn.cursor()
-        cursor.execute('SELECT count(*) FROM historical_spurt WHERE date=? AND stock_name=?', (today_str, row['stock_name']))
-        if cursor.fetchone()[0] > 0:
-            cursor.execute('UPDATE historical_spurt SET spurt_pct=? WHERE date=? AND stock_name=?', (row['spurt_pct'], today_str, row['stock_name']))
-        else:
-            df_insert = pd.DataFrame([row])
-            df_insert.to_sql('historical_spurt', conn, if_exists='append', index=False)
-    conn.commit()
-    conn.close()
-    maintain_rolling_window()
+    try:
+        if not live_list: return
+        live_df = pd.DataFrame([{'stock_name': x['symbol'], 'nse_spurt_pct': x.get('avgInOI', 0)} for x in live_list if x.get('symbol') not in ['NIFTY', 'BANKNIFTY', 'FINNIFTY']])
+        if live_df.empty: return
+        today_str = date.today().strftime('%Y-%m-%d')
+        conn = sqlite3.connect(DB_NAME, timeout=15)
+        eod_df = live_df.rename(columns={'nse_spurt_pct': 'spurt_pct'})
+        eod_df['date'] = today_str
+        for _, row in eod_df.iterrows():
+            cursor = conn.cursor()
+            cursor.execute('SELECT count(*) FROM historical_spurt WHERE date=? AND stock_name=?', (today_str, row['stock_name']))
+            if cursor.fetchone()[0] > 0:
+                cursor.execute('UPDATE historical_spurt SET spurt_pct=? WHERE date=? AND stock_name=?', (row['spurt_pct'], today_str, row['stock_name']))
+            else:
+                df_insert = pd.DataFrame([row])
+                df_insert.to_sql('historical_spurt', conn, if_exists='append', index=False)
+        conn.commit()
+        conn.close()
+        maintain_rolling_window()
+    except Exception as e:
+        print(f"DB Save Error: {e}")
 
 def get_real_nse_data():
     headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36', 'Accept': '*/*', 'Accept-Language': 'en-US,en;q=0.5'}
@@ -118,22 +126,6 @@ def get_fo_gainers_losers(session):
     except Exception as e: pass
     return pd.DataFrame(), pd.DataFrame()
 
-def get_pre_925_data(stocks):
-    if not stocks: return {}
-    tickers_str = " ".join([s + ".NS" for s in stocks])
-    try:
-        data = yf.download(tickers_str, interval='5m', period='1d', group_by='ticker', progress=False)
-        res = {}
-        for s in stocks:
-            try:
-                df = data if len(stocks) == 1 else data[s + '.NS']
-                df = df.dropna()
-                df_early = df.between_time('09:15', '09:24')
-                if not df_early.empty: res[s] = {'early_high': df_early['High'].max(), 'early_low': df_early['Low'].min()}
-            except Exception: pass
-        return res
-    except Exception as e: return {}
-
 def get_pdh_pdl(stocks):
     if not stocks: return {}
     tickers_str = " ".join([s + ".NS" for s in stocks])
@@ -169,22 +161,26 @@ def get_live_price_changes(stocks):
     return price_changes
 
 def process_scanner_data(live_list):
-    conn = sqlite3.connect(DB_NAME)
-    hist_df = pd.read_sql("SELECT * FROM historical_spurt", conn)
-    conn.close()
-    if hist_df.empty: return pd.DataFrame(), pd.DataFrame()
-    hist_pivot = hist_df.pivot(index='stock_name', columns='date', values='spurt_pct').reset_index()
-    date_cols = sorted([c for c in hist_pivot.columns if c != 'stock_name'])
-    if not date_cols: return pd.DataFrame(), pd.DataFrame()
-    required_cols = date_cols[-4:] 
-    all_data = hist_pivot[['stock_name'] + required_cols].copy()
-    all_data.rename(columns={'stock_name': 'Stock'}, inplace=True)
-    live_ltp_map = {x['symbol']: x.get('underlyingValue', 0) for x in live_list}
-    all_data['LTP'] = all_data['Stock'].map(live_ltp_map)
-    all_data['Avg'] = all_data[required_cols].mean(axis=1, skipna=True)
-    all_data['Today_Sort'] = all_data[required_cols[-1]] if required_cols else 0
-    top_6 = all_data.sort_values(by='Avg', ascending=False).head(6)
-    return top_6, all_data
+    try:
+        conn = sqlite3.connect(DB_NAME, timeout=15)
+        hist_df = pd.read_sql("SELECT * FROM historical_spurt", conn)
+        conn.close()
+        if hist_df.empty: return pd.DataFrame(), pd.DataFrame()
+        hist_pivot = hist_df.pivot(index='stock_name', columns='date', values='spurt_pct').reset_index()
+        date_cols = sorted([c for c in hist_pivot.columns if c != 'stock_name'])
+        if not date_cols: return pd.DataFrame(), pd.DataFrame()
+        required_cols = date_cols[-4:] 
+        all_data = hist_pivot[['stock_name'] + required_cols].copy()
+        all_data.rename(columns={'stock_name': 'Stock'}, inplace=True)
+        live_ltp_map = {x['symbol']: x.get('underlyingValue', 0) for x in live_list}
+        all_data['LTP'] = all_data['Stock'].map(live_ltp_map)
+        all_data['Avg'] = all_data[required_cols].mean(axis=1, skipna=True)
+        all_data['Today_Sort'] = all_data[required_cols[-1]] if required_cols else 0
+        top_6 = all_data.sort_values(by='Avg', ascending=False).head(6)
+        return top_6, all_data
+    except Exception as e:
+        print(f"DB Read Error: {e}")
+        return pd.DataFrame(), pd.DataFrame()
 
 def is_market_open():
     now = datetime.now(ZoneInfo("Asia/Kolkata"))
@@ -285,7 +281,6 @@ def run_engine():
                                 sent_messages[msg] = time.time()
                     prev_brk = current_brk
                     
-            # 🚀 NEW: LIVE PRICE CHANGE % FETCHING VIA YAHOO FINANCE
             live_stocks = [x.get('symbol') for x in live_data if x.get('symbol') not in ['NIFTY', 'BANKNIFTY', 'FINNIFTY']]
             price_changes_map = get_live_price_changes(live_stocks)
             
@@ -308,10 +303,12 @@ def run_engine():
                 'notification_history': notification_history[-50:]
             }
             
-            # 🚀 NEW: ATOMIC WRITE TO PREVENT CRASHES IN APP
-            with open(STATE_FILE + ".tmp", 'w') as f:
-                json.dump(state, f)
-            os.replace(STATE_FILE + ".tmp", STATE_FILE)
+            try:
+                with open(STATE_FILE + ".tmp", 'w') as f:
+                    json.dump(state, f)
+                os.replace(STATE_FILE + ".tmp", STATE_FILE)
+            except Exception as e:
+                print(f"File Write Error: {e}")
                 
         except Exception as e:
             print(f"Engine Loop Error: {e}")

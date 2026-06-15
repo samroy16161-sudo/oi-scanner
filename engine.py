@@ -4,7 +4,7 @@ import numpy as np
 import time
 import requests
 import yfinance as yf
-from datetime import date, timedelta, datetime.
+from datetime import date, timedelta, datetime
 try:
     from zoneinfo import ZoneInfo
 except ImportError:

@@ -64,50 +64,42 @@ def main():
         chart_col1, chart_col2 = st.columns(2)
         selected_sector = None
         
-        with chart_col1:
-            st.markdown("<h4 style='text-align: center;'>Sector Heatmap</h4>", unsafe_allow_html=True)
+               with chart_col1:
+            st.markdown("<h4 style='text-align: center;'>Sector Performance</h4>", unsafe_allow_html=True)
             sector_data = state.get('sector_df', [])
             if sector_data:
                 sector_df = pd.DataFrame(sector_data)
-                sector_df['Size'] = 1
                 
-                fig1 = px.treemap(
-                    sector_df,
-                    path=[px.Constant("Sectors"), 'Sector'],
-                    values='Size',
-                    color='% Change',
-                    color_continuous_scale=['#FF3B30', '#1C1C1E', '#34C759'],
-                    color_continuous_midpoint=0,
-                    custom_data=['% Change']
-                )
+                fig1 = px.bar(sector_df, y='Sector', x='% Change', text='% Change', orientation='h')
                 fig1.update_traces(
-                    texttemplate="<b>%{label}</b><br>%{customdata[0]:+.2f}%",
-                    hovertemplate="%{label}: %{customdata[0]:+.2f}%<extra></extra>",
-                    textfont=dict(size=16, color='white')
+                    marker_color=['#00C853' if x >= 0 else '#D50000' for x in sector_df['% Change']], 
+                    texttemplate='<b>%{y}</b><br>%{text:+.2f}%', 
+                    textposition='inside',
+                    insidetextanchor='middle',
+                    textfont=dict(color='white', size=14)
                 )
                 fig1.update_layout(
+                    yaxis=dict(showgrid=False, showticklabels=False, title=""),
+                    xaxis=dict(showgrid=False, showticklabels=False, title="", zeroline=True, zerolinecolor='gray', zerolinewidth=2),
+                    showlegend=False, 
+                    height=450, 
                     margin=dict(t=0, b=0, l=0, r=0),
-                    coloraxis_showscale=False,
-                    height=450,
+                    plot_bgcolor='rgba(0,0,0,0)',
                     paper_bgcolor='rgba(0,0,0,0)',
-                    plot_bgcolor='rgba(0,0,0,0)'
+                    dragmode=False
                 )
                 
-                event = st.plotly_chart(fig1, use_container_width=True, on_select="rerun", key="sector_chart")
+                # displayModeBar: False lagane se faltu options nahi aayenge
+                event = st.plotly_chart(fig1, use_container_width=True, on_select="rerun", key="sector_chart", config={'displayModeBar': False})
                 
                 if hasattr(event, 'selection') and getattr(event.selection, 'points', None):
                     if len(event.selection.points) > 0:
-                        pt = event.selection.points[0]
-                        selected_sector = pt.get('label') or pt.get('id', '').split('/')[-1]
+                        selected_sector = event.selection.points[0].get('y')
                 elif isinstance(event, dict) and event.get('selection', {}).get('points'):
-                    pt = event['selection']['points'][0]
-                    selected_sector = pt.get('label') or pt.get('id', '').split('/')[-1]
-                    
-                if selected_sector == "Sectors":
-                    selected_sector = None
+                    selected_sector = event['selection']['points'][0].get('y')
                     
         with chart_col2:
-            st.markdown("<h4 style='text-align: center;'>Sector Stocks Spurt Heatmap</h4>", unsafe_allow_html=True)
+            st.markdown("<h4 style='text-align: center;'>Sector Stocks (Top Spurts)</h4>", unsafe_allow_html=True)
             if selected_sector:
                 st.caption(f"**{selected_sector}**")
                 all_stocks_df = pd.DataFrame(state.get('all_stocks_data', []))
@@ -116,36 +108,33 @@ def main():
                     sector_stocks = SECTOR_MAP.get(matched_key, [])
                     s_df = all_stocks_df[all_stocks_df['Stock'].isin(sector_stocks)].copy()
                     if not s_df.empty:
-                        s_df['Size'] = 1
+                        latest_date_col = all_stocks_df.columns[-3] 
                         
-                        fig2 = px.treemap(
-                            s_df,
-                            path=[px.Constant(selected_sector), 'Stock'],
-                            values='Size',
-                            color='Today_Sort',
-                            color_continuous_scale=['#FF3B30', '#1C1C1E', '#34C759'],
-                            color_continuous_midpoint=0,
-                            custom_data=['Today_Sort']
-                        )
+                        fig2 = px.bar(s_df, y='Stock', x='Today_Sort', text='Today_Sort', orientation='h')
                         fig2.update_traces(
-                            texttemplate="<b>%{label}</b><br>%{customdata[0]:+.2f}%",
-                            hovertemplate="%{label}: %{customdata[0]:+.2f}%<extra></extra>",
-                            textfont=dict(size=14, color='white')
+                            marker_color=['#00C853' if x >= 0 else '#D50000' for x in s_df['Today_Sort']], 
+                            texttemplate='<b>%{y}</b><br>%{text:+.2f}%', 
+                            textposition='inside',
+                            insidetextanchor='middle',
+                            textfont=dict(color='white', size=14)
                         )
                         fig2.update_layout(
+                            yaxis=dict(showgrid=False, showticklabels=False, title=""),
+                            xaxis=dict(showgrid=False, showticklabels=False, title="", zeroline=True, zerolinecolor='gray', zerolinewidth=2),
+                            showlegend=False, 
+                            height=450, 
                             margin=dict(t=0, b=0, l=0, r=0),
-                            coloraxis_showscale=False,
-                            height=450,
+                            plot_bgcolor='rgba(0,0,0,0)',
                             paper_bgcolor='rgba(0,0,0,0)',
-                            plot_bgcolor='rgba(0,0,0,0)'
+                            dragmode=False
                         )
-                        st.plotly_chart(fig2, use_container_width=True, key="stocks_chart")
+                        st.plotly_chart(fig2, use_container_width=True, key="stocks_chart", config={'displayModeBar': False})
                     else:
                         st.info("No stocks from this sector in today's spurt list.")
                 else:
                     st.info("Sector mapping not found.")
             else:
-                st.info("👈 Click on a Sector block on the left to see its stocks!")
+                st.info("👈 Click on a Sector bar on the left to see its stocks!")
                 
         st.markdown("---")
         

@@ -185,11 +185,18 @@ def start_engine():
     import sys
     try:
         if sys.platform == "win32":
-            subprocess.check_output("tasklist | findstr engine.py", shell=True)
+            output = subprocess.check_output("tasklist | findstr engine.py", shell=True).decode()
+            if "engine.py" not in output:
+                subprocess.Popen([sys.executable, "engine.py"])
         else:
-            subprocess.check_output(["pgrep", "-f", "engine.py"])
-    except subprocess.CalledProcessError:
-        subprocess.Popen([sys.executable, "engine.py"])
+            output = subprocess.check_output(["ps", "aux"]).decode()
+            if output.count("engine.py") <= 1: 
+                subprocess.Popen([sys.executable, "engine.py"])
+    except Exception as e:
+        try:
+            subprocess.Popen([sys.executable, "engine.py"])
+        except:
+            pass
 
 if __name__ == "__main__":
     start_engine()

@@ -126,7 +126,7 @@ def main():
             st.dataframe(styled_df_1, use_container_width=True, hide_index=True)
             
             st.markdown("---")
-            st.markdown("### ⚡ Daily Top 10 Spurts & Consistent Performers")
+            st.markdown("### ⚡ Daily Top 10 Spurts")
             
             def format_daily(df, col):
                 if df.empty: return df
@@ -142,6 +142,34 @@ def main():
                 with cols_ui[i % 2]:
                     st.markdown(f"##### 📅 Top 10 for {d_col}")
                     st.dataframe(format_daily(t_df, d_col), use_container_width=True, hide_index=True)
+
+            # Consistent Performers Logic
+            st.markdown("---")
+            st.markdown("### 🎯 Consistent Performers")
+            
+            top_lists = {}
+            for d_col in rev_dates:
+                top_lists[d_col] = all_stocks_data.sort_values(by=d_col, ascending=False).head(10)['Stock'].tolist()
+                
+            if len(rev_dates) >= 2:
+                today_col = rev_dates[0]
+                prev_col = rev_dates[1]
+                
+                st.markdown(f"**Common in {today_col} & {prev_col}:**")
+                common_1 = set(top_lists[today_col]).intersection(set(top_lists[prev_col]))
+                if common_1:
+                    st.success(", ".join(common_1))
+                else:
+                    st.info("No common stocks.")
+                    
+                if len(rev_dates) >= 3:
+                    prev2_col = rev_dates[2]
+                    st.markdown(f"**Common in {today_col} & {prev2_col}:**")
+                    common_2 = set(top_lists[today_col]).intersection(set(top_lists[prev2_col]))
+                    if common_2:
+                        st.success(", ".join(common_2))
+                    else:
+                        st.info("No common stocks.")
 
     elif selected_page == "PDH/PDL Scanner":
         st.markdown("<h2 style='text-align: center;'>🚀 PDH/PDL Breakout Scanner</h2>", unsafe_allow_html=True)

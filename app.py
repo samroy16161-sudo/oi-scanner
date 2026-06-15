@@ -74,8 +74,8 @@ def main():
                 fig1.update_traces(
                     marker_color=['#00C853' if x >= 0 else '#D50000' for x in sector_df['% Change']], 
                     texttemplate='<b>%{y}</b><br>%{text:+.2f}%', 
-                    textposition='inside',
-                    insidetextanchor='middle',
+                    textposition='auto',
+                    textangle=0,
                     textfont=dict(color='white', size=14)
                 )
                 fig1.update_layout(
@@ -86,7 +86,7 @@ def main():
                     margin=dict(t=0, b=0, l=0, r=0),
                     plot_bgcolor='rgba(0,0,0,0)',
                     paper_bgcolor='rgba(0,0,0,0)',
-                    dragmode=False
+                    clickmode='event+select'
                 )
                 
                 event = st.plotly_chart(fig1, use_container_width=True, on_select="rerun", key="sector_chart", config={'displayModeBar': False})
@@ -102,7 +102,7 @@ def main():
             if selected_sector:
                 st.caption(f"**{selected_sector}**")
                 all_stocks_df = pd.DataFrame(state.get('all_stocks_data', []))
-                matched_key = next((k for k in SECTOR_MAP.keys() if k in selected_sector.upper()), None)
+                matched_key = next((k for k in SECTOR_MAP.keys() if selected_sector.upper() in k), None)
                 if matched_key and not all_stocks_df.empty:
                     sector_stocks = SECTOR_MAP.get(matched_key, [])
                     s_df = all_stocks_df[all_stocks_df['Stock'].isin(sector_stocks)].copy()
@@ -113,8 +113,8 @@ def main():
                         fig2.update_traces(
                             marker_color=['#00C853' if x >= 0 else '#D50000' for x in s_df['Today_Sort']], 
                             texttemplate='<b>%{y}</b><br>%{text:+.2f}%', 
-                            textposition='inside',
-                            insidetextanchor='middle',
+                            textposition='auto',
+                            textangle=0,
                             textfont=dict(color='white', size=14)
                         )
                         fig2.update_layout(
@@ -125,7 +125,7 @@ def main():
                             margin=dict(t=0, b=0, l=0, r=0),
                             plot_bgcolor='rgba(0,0,0,0)',
                             paper_bgcolor='rgba(0,0,0,0)',
-                            dragmode=False
+                            clickmode='event+select'
                         )
                         st.plotly_chart(fig2, use_container_width=True, key="stocks_chart", config={'displayModeBar': False})
                     else:

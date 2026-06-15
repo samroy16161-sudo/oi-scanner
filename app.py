@@ -107,7 +107,8 @@ def main():
                     sector_stocks = SECTOR_MAP.get(matched_key, [])
                     s_df = all_stocks_df[all_stocks_df['Stock'].isin(sector_stocks)].copy()
                     if not s_df.empty:
-                        latest_date_col = all_stocks_df.columns[-3] 
+                        # Stocks ko Lowest se Highest sort kiya taki Chart me Sabse Highest wala Upar aaye!
+                        s_df = s_df.sort_values(by='Today_Sort', ascending=True)
                         
                         fig2 = px.bar(s_df, y='Stock', x='Today_Sort', text='Today_Sort', orientation='h')
                         fig2.update_traces(

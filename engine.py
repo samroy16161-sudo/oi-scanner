@@ -144,10 +144,29 @@ def get_pdh_pdl(stocks):
             try:
                 df = data if len(stocks) == 1 else data[s + '.NS']
                 df = df.dropna()
-                if len(df) >= 2: res[s] = {'PDH': df.iloc[-2]['High'], 'PDL': df.iloc[-2]['Low']}
+                if len(df) >= 2: res[s] = {'PDH': float(df.iloc[-2]['High']), 'PDL': float(df.iloc[-2]['Low'])}
             except Exception: pass
         return res
     except Exception as e: return {}
+
+def get_live_price_changes(stocks):
+    price_changes = {}
+    if not stocks: return price_changes
+    tickers_str = " ".join([s + ".NS" for s in stocks])
+    try:
+        yf_data = yf.download(tickers_str, period="2d", interval="1d", group_by='ticker', progress=False)
+        for s in stocks:
+            try:
+                df = yf_data[s + '.NS'].dropna() if len(stocks) > 1 else yf_data.dropna()
+                if len(df) >= 2:
+                    prev_c = float(df.iloc[-2]['Close'].iloc[0]) if hasattr(df.iloc[-2]['Close'], 'iloc') else float(df.iloc[-2]['Close'])
+                    curr_c = float(df.iloc[-1]['Close'].iloc[0]) if hasattr(df.iloc[-1]['Close'], 'iloc') else float(df.iloc[-1]['Close'])
+                    pct_chg = ((curr_c - prev_c) / prev_c) * 100
+                    price_changes[s] = round(pct_chg, 2)
+            except Exception: pass
+    except Exception as e:
+        print("YF Error:", e)
+    return price_changes
 
 def process_scanner_data(live_list):
     conn = sqlite3.connect(DB_NAME)
@@ -266,13 +285,16 @@ def run_engine():
                                 sent_messages[msg] = time.time()
                     prev_brk = current_brk
                     
+            # 🚀 NEW: LIVE PRICE CHANGE % FETCHING VIA YAHOO FINANCE
+            live_stocks = [x.get('symbol') for x in live_data if x.get('symbol') not in ['NIFTY', 'BANKNIFTY', 'FINNIFTY']]
+            price_changes_map = get_live_price_changes(live_stocks)
+            
             live_stocks_info = []
-            for x in live_data:
-                if x.get('symbol') not in ['NIFTY', 'BANKNIFTY', 'FINNIFTY']:
-                    live_stocks_info.append({
-                        'Stock': x.get('symbol'),
-                        'Price_Change': float(x.get('percChgInPrice', 0) or 0)
-                    })
+            for stock_sym in live_stocks:
+                live_stocks_info.append({
+                    'Stock': stock_sym,
+                    'Price_Change': price_changes_map.get(stock_sym, 0.0)
+                })
                     
             state = {
                 'timestamp': datetime.now(ZoneInfo('Asia/Kolkata')).strftime('%H:%M:%S'),
@@ -285,8 +307,11 @@ def run_engine():
                 'breakout_res': breakout_res,
                 'notification_history': notification_history[-50:]
             }
-            with open(STATE_FILE, 'w') as f:
+            
+            # 🚀 NEW: ATOMIC WRITE TO PREVENT CRASHES IN APP
+            with open(STATE_FILE + ".tmp", 'w') as f:
                 json.dump(state, f)
+            os.replace(STATE_FILE + ".tmp", STATE_FILE)
                 
         except Exception as e:
             print(f"Engine Loop Error: {e}")

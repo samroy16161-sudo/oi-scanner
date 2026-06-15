@@ -30,35 +30,14 @@ def load_state():
             return None
     return None
 
-def main():
-    st.title("🚀 F&O OI Spurt Scanner (Live Engine Connected)")
-    st.markdown("""
-        **Real-Time Institutional-Grade OI Analyzer** 
-        Continuously scans NSE F&O stocks and identifies the **Top 6** stocks with the highest 4-Day Average % Open Interest Spurt.
-    """)
-    
+@st.fragment(run_every="60s")
+def display_live_dashboard(selected_page):
     state = load_state()
     if not state:
-        st.warning("⏳ Waiting for backend engine to collect data... Please refresh in a minute.")
+        st.warning("⏳ Waiting for backend engine to collect data... Please wait.")
         return
         
-    st.session_state['notification_history'] = state.get('notification_history', [])
-    
-    st.sidebar.header("⚙️ Settings")
-    st.sidebar.markdown("---")
-    selected_page = st.sidebar.radio("Navigation", ["Sector Dashboard", "PDH/PDL Scanner"])
-    
-    st.sidebar.markdown("---")
-    st.sidebar.success("🟢 **LIVE ENGINE CONNECTED**\nRunning securely on backend server.")
-    
-    with st.sidebar.popover("🔔 Notifications History"):
-        if st.session_state['notification_history']:
-            for msg in reversed(st.session_state['notification_history']):
-                st.caption(msg)
-        else:
-            st.write("No notifications yet.")
-            
-    st.markdown(f"<div style='text-align: right; padding-bottom: 5px; color: gray;'>Last Updated from Engine: {state.get('timestamp', '')}</div>", unsafe_allow_html=True)
+    st.markdown(f"<div style='text-align: right; padding-bottom: 5px; color: #00C853; font-weight: bold;'>🟢 Live: Last Fetched at {state.get('timestamp', '')} (Auto-updating)</div>", unsafe_allow_html=True)
 
     if selected_page == "Sector Dashboard":
         chart_col1, chart_col2 = st.columns(2)
@@ -107,9 +86,7 @@ def main():
                     sector_stocks = SECTOR_MAP.get(matched_key, [])
                     s_df = all_stocks_df[all_stocks_df['Stock'].isin(sector_stocks)].copy()
                     if not s_df.empty:
-                        # Stocks ko Lowest se Highest sort kiya taki Chart me Sabse Highest wala Upar aaye!
                         s_df = s_df.sort_values(by='Today_Sort', ascending=True)
-                        
                         fig2 = px.bar(s_df, y='Stock', x='Today_Sort', text='Today_Sort', orientation='h')
                         fig2.update_traces(
                             marker_color=['#00C853' if x >= 0 else '#D50000' for x in s_df['Today_Sort']], 
@@ -175,7 +152,6 @@ def main():
                     st.markdown(f"##### 📅 Top 10 for {d_col}")
                     st.dataframe(format_daily(t_df, d_col), use_container_width=True, hide_index=True)
 
-            # Consistent Performers Logic
             st.markdown("---")
             st.markdown("### 🎯 Consistent Performers (Common in Top 10s)")
             
@@ -224,6 +200,33 @@ def main():
             st.dataframe(display_brk.style.map(highlight_status, subset=['Status']), use_container_width=True, hide_index=True)
         else:
             st.info("No active breakouts found yet or scanner is out of market window (09:25 to 15:30).")
+
+def main():
+    st.title("🚀 F&O OI Spurt Scanner (Live Engine Connected)")
+    st.markdown("""
+        **Real-Time Institutional-Grade OI Analyzer** 
+        Continuously scans NSE F&O stocks and identifies the **Top 6** stocks with the highest 4-Day Average % Open Interest Spurt.
+    """)
+    
+    st.sidebar.header("⚙️ Settings")
+    st.sidebar.markdown("---")
+    selected_page = st.sidebar.radio("Navigation", ["Sector Dashboard", "PDH/PDL Scanner"])
+    
+    st.sidebar.markdown("---")
+    st.sidebar.success("🟢 **LIVE ENGINE CONNECTED**\nRunning securely on backend server.")
+    
+    state = load_state()
+    st.session_state['notification_history'] = state.get('notification_history', []) if state else []
+    
+    with st.sidebar.popover("🔔 Notifications History"):
+        if st.session_state['notification_history']:
+            for msg in reversed(st.session_state['notification_history']):
+                st.caption(msg)
+        else:
+            st.write("No notifications yet.")
+            
+    # Ye function har 60 second me auto-run hoga, aur chart update karega!
+    display_live_dashboard(selected_page)
 
 def start_engine():
     import subprocess

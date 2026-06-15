@@ -64,7 +64,7 @@ def main():
         chart_col1, chart_col2 = st.columns(2)
         selected_sector = None
         
-               with chart_col1:
+        with chart_col1:
             st.markdown("<h4 style='text-align: center;'>Sector Performance</h4>", unsafe_allow_html=True)
             sector_data = state.get('sector_df', [])
             if sector_data:
@@ -89,7 +89,6 @@ def main():
                     dragmode=False
                 )
                 
-                # displayModeBar: False lagane se faltu options nahi aayenge
                 event = st.plotly_chart(fig1, use_container_width=True, on_select="rerun", key="sector_chart", config={'displayModeBar': False})
                 
                 if hasattr(event, 'selection') and getattr(event.selection, 'points', None):

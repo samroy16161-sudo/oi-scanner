@@ -65,24 +65,49 @@ def main():
         selected_sector = None
         
         with chart_col1:
-            st.markdown("<h4 style='text-align: center;'>Sector Performance</h4>", unsafe_allow_html=True)
+            st.markdown("<h4 style='text-align: center;'>Sector Heatmap</h4>", unsafe_allow_html=True)
             sector_data = state.get('sector_df', [])
             if sector_data:
                 sector_df = pd.DataFrame(sector_data)
-                sector_df['Color'] = ['#00FF00' if x >= 0 else '#FF4500' for x in sector_df['% Change']]
-                fig1 = px.bar(sector_df, y='Sector', x='% Change', text='% Change', orientation='h')
-                fig1.update_traces(marker_color=sector_df['Color'], texttemplate='%{text:.2f}%', textposition='outside')
-                fig1.update_layout(yaxis_title=None, xaxis_title=None, showlegend=False, height=450, margin=dict(t=10, b=10, l=10, r=40))
+                sector_df['Size'] = 1
+                
+                fig1 = px.treemap(
+                    sector_df,
+                    path=[px.Constant("Sectors"), 'Sector'],
+                    values='Size',
+                    color='% Change',
+                    color_continuous_scale=['#FF3B30', '#1C1C1E', '#34C759'],
+                    color_continuous_midpoint=0,
+                    custom_data=['% Change']
+                )
+                fig1.update_traces(
+                    texttemplate="<b>%{label}</b><br>%{customdata[0]:+.2f}%",
+                    hovertemplate="%{label}: %{customdata[0]:+.2f}%<extra></extra>",
+                    textfont=dict(size=16, color='white')
+                )
+                fig1.update_layout(
+                    margin=dict(t=0, b=0, l=0, r=0),
+                    coloraxis_showscale=False,
+                    height=450,
+                    paper_bgcolor='rgba(0,0,0,0)',
+                    plot_bgcolor='rgba(0,0,0,0)'
+                )
+                
                 event = st.plotly_chart(fig1, use_container_width=True, on_select="rerun", key="sector_chart")
                 
                 if hasattr(event, 'selection') and getattr(event.selection, 'points', None):
                     if len(event.selection.points) > 0:
-                        selected_sector = event.selection.points[0].get('y')
+                        pt = event.selection.points[0]
+                        selected_sector = pt.get('label') or pt.get('id', '').split('/')[-1]
                 elif isinstance(event, dict) and event.get('selection', {}).get('points'):
-                    selected_sector = event['selection']['points'][0].get('y')
+                    pt = event['selection']['points'][0]
+                    selected_sector = pt.get('label') or pt.get('id', '').split('/')[-1]
+                    
+                if selected_sector == "Sectors":
+                    selected_sector = None
                     
         with chart_col2:
-            st.markdown("<h4 style='text-align: center;'>Sector Stocks (Top Spurts)</h4>", unsafe_allow_html=True)
+            st.markdown("<h4 style='text-align: center;'>Sector Stocks Spurt Heatmap</h4>", unsafe_allow_html=True)
             if selected_sector:
                 st.caption(f"**{selected_sector}**")
                 all_stocks_df = pd.DataFrame(state.get('all_stocks_data', []))
@@ -91,18 +116,36 @@ def main():
                     sector_stocks = SECTOR_MAP.get(matched_key, [])
                     s_df = all_stocks_df[all_stocks_df['Stock'].isin(sector_stocks)].copy()
                     if not s_df.empty:
-                        latest_date_col = all_stocks_df.columns[-3] 
-                        s_df['Color'] = ['#00FF00' if x >= 0 else '#FF4500' for x in s_df['Today_Sort']]
-                        fig2 = px.bar(s_df, y='Stock', x='Today_Sort', text='Today_Sort', orientation='h')
-                        fig2.update_traces(marker_color=s_df['Color'], texttemplate='%{text:.2f}%', textposition='outside')
-                        fig2.update_layout(yaxis_title=None, xaxis_title=None, showlegend=False, height=450, margin=dict(t=10, b=10, l=10, r=40))
+                        s_df['Size'] = 1
+                        
+                        fig2 = px.treemap(
+                            s_df,
+                            path=[px.Constant(selected_sector), 'Stock'],
+                            values='Size',
+                            color='Today_Sort',
+                            color_continuous_scale=['#FF3B30', '#1C1C1E', '#34C759'],
+                            color_continuous_midpoint=0,
+                            custom_data=['Today_Sort']
+                        )
+                        fig2.update_traces(
+                            texttemplate="<b>%{label}</b><br>%{customdata[0]:+.2f}%",
+                            hovertemplate="%{label}: %{customdata[0]:+.2f}%<extra></extra>",
+                            textfont=dict(size=14, color='white')
+                        )
+                        fig2.update_layout(
+                            margin=dict(t=0, b=0, l=0, r=0),
+                            coloraxis_showscale=False,
+                            height=450,
+                            paper_bgcolor='rgba(0,0,0,0)',
+                            plot_bgcolor='rgba(0,0,0,0)'
+                        )
                         st.plotly_chart(fig2, use_container_width=True, key="stocks_chart")
                     else:
                         st.info("No stocks from this sector in today's spurt list.")
                 else:
                     st.info("Sector mapping not found.")
             else:
-                st.info("👈 Click on a Sector bar on the left to see its stocks!")
+                st.info("👈 Click on a Sector block on the left to see its stocks!")
                 
         st.markdown("---")
         
@@ -143,7 +186,7 @@ def main():
                     st.markdown(f"##### 📅 Top 10 for {d_col}")
                     st.dataframe(format_daily(t_df, d_col), use_container_width=True, hide_index=True)
 
-                       # Consistent Performers Logic
+            # Consistent Performers Logic
             st.markdown("---")
             st.markdown("### 🎯 Consistent Performers (Common in Top 10s)")
             
@@ -168,6 +211,8 @@ def main():
                     st.dataframe(cons_df, use_container_width=True, hide_index=True)
                 else:
                     st.info("No stock repeated in Top 10s across these days.")
+
+    elif selected_page == "PDH/PDL Scanner":
         st.markdown("<h2 style='text-align: center;'>🚀 PDH/PDL Breakout Scanner</h2>", unsafe_allow_html=True)
         st.markdown("<p style='text-align: center;'>Scanning live Top 10 OI Spurt stocks for Previous Day High/Low breakouts (After 9:25 AM)</p>", unsafe_allow_html=True)
         st.markdown("---")

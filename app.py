@@ -143,35 +143,31 @@ def main():
                     st.markdown(f"##### 📅 Top 10 for {d_col}")
                     st.dataframe(format_daily(t_df, d_col), use_container_width=True, hide_index=True)
 
-            # Consistent Performers Logic
+                       # Consistent Performers Logic
             st.markdown("---")
-            st.markdown("### 🎯 Consistent Performers")
+            st.markdown("### 🎯 Consistent Performers (Common in Top 10s)")
             
-            top_lists = {}
+            all_top_stocks = []
             for d_col in rev_dates:
-                top_lists[d_col] = all_stocks_data.sort_values(by=d_col, ascending=False).head(10)['Stock'].tolist()
+                all_top_stocks.extend(all_stocks_data.sort_values(by=d_col, ascending=False).head(10)['Stock'].tolist())
                 
-            if len(rev_dates) >= 2:
-                today_col = rev_dates[0]
-                prev_col = rev_dates[1]
+            if all_top_stocks:
+                from collections import Counter
+                counts = Counter(all_top_stocks)
                 
-                st.markdown(f"**Common in {today_col} & {prev_col}:**")
-                common_1 = set(top_lists[today_col]).intersection(set(top_lists[prev_col]))
-                if common_1:
-                    st.success(", ".join(common_1))
+                consistent_data = []
+                for stock, count in counts.items():
+                    if count >= 2:
+                        consistent_data.append({
+                            'Stock': stock,
+                            'Times in Top 10': count
+                        })
+                
+                if consistent_data:
+                    cons_df = pd.DataFrame(consistent_data).sort_values(by='Times in Top 10', ascending=False)
+                    st.dataframe(cons_df, use_container_width=True, hide_index=True)
                 else:
-                    st.info("No common stocks.")
-                    
-                if len(rev_dates) >= 3:
-                    prev2_col = rev_dates[2]
-                    st.markdown(f"**Common in {today_col} & {prev2_col}:**")
-                    common_2 = set(top_lists[today_col]).intersection(set(top_lists[prev2_col]))
-                    if common_2:
-                        st.success(", ".join(common_2))
-                    else:
-                        st.info("No common stocks.")
-
-    elif selected_page == "PDH/PDL Scanner":
+                    st.info("No stock repeated in Top 10s across these days.")
         st.markdown("<h2 style='text-align: center;'>🚀 PDH/PDL Breakout Scanner</h2>", unsafe_allow_html=True)
         st.markdown("<p style='text-align: center;'>Scanning live Top 10 OI Spurt stocks for Previous Day High/Low breakouts (After 9:25 AM)</p>", unsafe_allow_html=True)
         st.markdown("---")

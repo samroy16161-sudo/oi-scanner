@@ -74,7 +74,6 @@ def get_real_nse_data():
     s.headers.update(headers)
     try:
         s.get("https://www.nseindia.com", timeout=10)
-        # Bypassing NSE Cache using millisecond timestamp
         r = s.get(f"https://www.nseindia.com/api/live-analysis-oi-spurts-underlyings?v={int(time.time() * 1000)}", timeout=10)
         if r.status_code == 200: return r.json().get("data", []), s
         return [], s
@@ -84,7 +83,6 @@ def get_real_nse_data():
 def get_sector_performance(session):
     try:
         session.headers.update({'Referer': 'https://www.nseindia.com/market-data/live-market-indices'})
-        # Bypassing NSE Cache using millisecond timestamp
         r = session.get(f"https://www.nseindia.com/api/allIndices?v={int(time.time() * 1000)}", timeout=10)
         if r.status_code == 200:
             data = r.json().get('data', [])
@@ -268,6 +266,14 @@ def run_engine():
                                 sent_messages[msg] = time.time()
                     prev_brk = current_brk
                     
+            live_stocks_info = []
+            for x in live_data:
+                if x.get('symbol') not in ['NIFTY', 'BANKNIFTY', 'FINNIFTY']:
+                    live_stocks_info.append({
+                        'Stock': x.get('symbol'),
+                        'Price_Change': float(x.get('percChgInPrice', 0) or 0)
+                    })
+                    
             state = {
                 'timestamp': datetime.now(ZoneInfo('Asia/Kolkata')).strftime('%H:%M:%S'),
                 'sector_df': sector_df.to_dict('records') if not sector_df.empty else [],
@@ -275,6 +281,7 @@ def run_engine():
                 'losers_df': losers_df.to_dict('records') if not losers_df.empty else [],
                 'top_6_data': top_6_data.to_dict('records') if not top_6_data.empty else [],
                 'all_stocks_data': all_stocks_data.to_dict('records') if not all_stocks_data.empty else [],
+                'live_fo_stocks': live_stocks_info,
                 'breakout_res': breakout_res,
                 'notification_history': notification_history[-50:]
             }

@@ -74,7 +74,8 @@ def get_real_nse_data():
     s.headers.update(headers)
     try:
         s.get("https://www.nseindia.com", timeout=10)
-        r = s.get(f"https://www.nseindia.com/api/live-analysis-oi-spurts-underlyings?v={int(time.time())}", timeout=10)
+        # Bypassing NSE Cache using millisecond timestamp
+        r = s.get(f"https://www.nseindia.com/api/live-analysis-oi-spurts-underlyings?v={int(time.time() * 1000)}", timeout=10)
         if r.status_code == 200: return r.json().get("data", []), s
         return [], s
     except Exception as e:
@@ -83,6 +84,7 @@ def get_real_nse_data():
 def get_sector_performance(session):
     try:
         session.headers.update({'Referer': 'https://www.nseindia.com/market-data/live-market-indices'})
+        # Bypassing NSE Cache using millisecond timestamp
         r = session.get(f"https://www.nseindia.com/api/allIndices?v={int(time.time() * 1000)}", timeout=10)
         if r.status_code == 200:
             data = r.json().get('data', [])
@@ -101,7 +103,7 @@ def get_sector_performance(session):
 
 def get_fo_gainers_losers(session):
     try:
-        r = session.get(f"https://www.nseindia.com/api/live-analysis-variations?index=fno&v={int(time.time())}", timeout=10)
+        r = session.get(f"https://www.nseindia.com/api/live-analysis-variations?index=fno&v={int(time.time() * 1000)}", timeout=10)
         if r.status_code == 200:
             data = r.json()
             gainers = pd.DataFrame(data.get('NIFTY', {}).get('gainers', []))

@@ -30,14 +30,36 @@ def load_state():
             return None
     return None
 
-@st.fragment(run_every="60s")
-def display_live_dashboard(selected_page):
+def main():
+    st.title("🚀 F&O OI Spurt Scanner (Live Engine Connected)")
+    st.markdown("""
+        **Real-Time Institutional-Grade OI Analyzer** 
+        Continuously scans NSE F&O stocks and identifies the **Top 6** stocks with the highest 4-Day Average % Open Interest Spurt.
+    """)
+    
     state = load_state()
     if not state:
-        st.warning("⏳ Waiting for backend engine to collect data... Please wait.")
+        st.warning("⏳ Waiting for backend engine to collect data... Please refresh in a minute.")
         return
         
-    st.markdown(f"<div style='text-align: right; padding-bottom: 5px; color: #00C853; font-weight: bold;'>🟢 Live: Last Fetched at {state.get('timestamp', '')} (Auto-updating)</div>", unsafe_allow_html=True)
+    # Inject notifications
+    st.session_state['notification_history'] = state.get('notification_history', [])
+    
+    st.sidebar.header("⚙️ Settings")
+    st.sidebar.markdown("---")
+    selected_page = st.sidebar.radio("Navigation", ["Sector Dashboard", "PDH/PDL Scanner"])
+    
+    st.sidebar.markdown("---")
+    st.sidebar.success("🟢 **LIVE ENGINE CONNECTED**\nRunning securely on backend server.")
+    
+    with st.sidebar.popover("🔔 Notifications History"):
+        if st.session_state['notification_history']:
+            for msg in reversed(st.session_state['notification_history']):
+                st.caption(msg)
+        else:
+            st.write("No notifications yet.")
+            
+    st.markdown(f"<div style='text-align: right; padding-bottom: 5px; color: gray;'>Last Updated from Engine: {state.get('timestamp', '')}</div>", unsafe_allow_html=True)
 
     if selected_page == "Sector Dashboard":
         chart_col1, chart_col2 = st.columns(2)
@@ -111,7 +133,7 @@ def display_live_dashboard(selected_page):
                 else:
                     st.info("Sector mapping not found.")
             else:
-                st.info("👈 Click on a Sector bar on the left to see its stocks!")
+                st.info("👈 Click on a Sector block on the left to see its stocks!")
                 
         st.markdown("---")
         
@@ -135,7 +157,7 @@ def display_live_dashboard(selected_page):
             st.dataframe(styled_df_1, use_container_width=True, hide_index=True)
             
             st.markdown("---")
-            st.markdown("### ⚡ Daily Top 10 Spurts")
+            st.markdown("### ⚡ Daily Top 10 Spurts & Consistent Performers")
             
             def format_daily(df, col):
                 if df.empty: return df
@@ -143,15 +165,29 @@ def display_live_dashboard(selected_page):
                 disp['LTP'] = disp['LTP'].apply(lambda x: f"₹{x:,.2f}" if isinstance(x, (int, float)) else x)
                 return disp.style.format({col: '{:+.2f}%'}).map(style_spurt, subset=[col])
                 
+            # date_cols are chronological. Let's reverse them so most recent is first.
             rev_dates = list(reversed(date_cols))
             
+            def get_stock_sector(stock_name):
+                sectors = []
+                for s, s_list in SECTOR_MAP.items():
+                    if stock_name in s_list:
+                        sectors.append(s.replace('NIFTY ', ''))
+                if not sectors: return "OTHER"
+                return " / ".join(sectors)
+
             cols_ui = st.columns(2)
             for i, d_col in enumerate(rev_dates):
-                t_df = all_stocks_data.sort_values(by=d_col, ascending=False).head(10)[['Stock', 'LTP', d_col]]
+                t_df = all_stocks_data.sort_values(by=d_col, ascending=False).head(10)[['Stock', 'LTP', d_col]].copy()
+                if i == 0:
+                    t_df['Sector'] = t_df['Stock'].apply(get_stock_sector)
+                    t_df = t_df[['Stock', 'Sector', 'LTP', d_col]]
+                
                 with cols_ui[i % 2]:
                     st.markdown(f"##### 📅 Top 10 for {d_col}")
                     st.dataframe(format_daily(t_df, d_col), use_container_width=True, hide_index=True)
 
+            # Consistent Performers Logic
             st.markdown("---")
             st.markdown("### 🎯 Consistent Performers (Common in Top 10s)")
             
@@ -201,32 +237,6 @@ def display_live_dashboard(selected_page):
         else:
             st.info("No active breakouts found yet or scanner is out of market window (09:25 to 15:30).")
 
-def main():
-    st.title("🚀 F&O OI Spurt Scanner (Live Engine Connected)")
-    st.markdown("""
-        **Real-Time Institutional-Grade OI Analyzer** 
-        Continuously scans NSE F&O stocks and identifies the **Top 6** stocks with the highest 4-Day Average % Open Interest Spurt.
-    """)
-    
-    st.sidebar.header("⚙️ Settings")
-    st.sidebar.markdown("---")
-    selected_page = st.sidebar.radio("Navigation", ["Sector Dashboard", "PDH/PDL Scanner"])
-    
-    st.sidebar.markdown("---")
-    st.sidebar.success("🟢 **LIVE ENGINE CONNECTED**\nRunning securely on backend server.")
-    
-    state = load_state()
-    st.session_state['notification_history'] = state.get('notification_history', []) if state else []
-    
-    with st.sidebar.popover("🔔 Notifications History"):
-        if st.session_state['notification_history']:
-            for msg in reversed(st.session_state['notification_history']):
-                st.caption(msg)
-        else:
-            st.write("No notifications yet.")
-            
-    display_live_dashboard(selected_page)
-
 def start_engine():
     import subprocess
     import sys
@@ -237,9 +247,11 @@ def start_engine():
                 subprocess.Popen([sys.executable, "engine.py"])
         else:
             output = subprocess.check_output(["ps", "aux"]).decode()
+            # Only start if 'engine.py' is not found in the running processes (excluding the ps command itself)
             if output.count("engine.py") <= 1: 
                 subprocess.Popen([sys.executable, "engine.py"])
     except Exception as e:
+        # Fallback if ps command fails
         try:
             subprocess.Popen([sys.executable, "engine.py"])
         except:

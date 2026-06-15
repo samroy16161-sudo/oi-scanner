@@ -176,6 +176,7 @@ def run_engine():
     print("Starting F&O Scanner Engine...")
     init_db()
     prev_top_10, prev_ltps, active_breakouts, prev_brk, notification_history = set(), {}, {}, set(), []
+    sent_messages = {}
     
     while True:
         if not is_market_open():
@@ -203,11 +204,24 @@ def run_engine():
                 
                 if prev_top_10:
                     new_entries = current_top_10 - prev_top_10
+                    exits = prev_top_10 - current_top_10
+                    
                     if new_entries:
                         stocks_str = ", ".join(new_entries)
-                        msg = f"🚀 New in Today's Top 10: {stocks_str}"
-                        send_telegram(msg)
-                        notification_history.append(f"[{datetime.now(ZoneInfo('Asia/Kolkata')).strftime('%H:%M:%S')}] {msg}")
+                        msg = f"🚀 ENTERED Top 10: {stocks_str}"
+                        if msg not in sent_messages or (time.time() - sent_messages[msg] > 600):
+                            send_telegram(msg)
+                            notification_history.append(f"[{datetime.now(ZoneInfo('Asia/Kolkata')).strftime('%H:%M:%S')}] {msg}")
+                            sent_messages[msg] = time.time()
+                        
+                    if exits:
+                        stocks_str = ", ".join(exits)
+                        msg = f"👋 EXITED Top 10: {stocks_str}"
+                        if msg not in sent_messages or (time.time() - sent_messages[msg] > 600):
+                            send_telegram(msg)
+                            notification_history.append(f"[{datetime.now(ZoneInfo('Asia/Kolkata')).strftime('%H:%M:%S')}] {msg}")
+                            sent_messages[msg] = time.time()
+                        
                 prev_top_10 = current_top_10
                 
                 current_time = datetime.now(ZoneInfo('Asia/Kolkata')).time()
@@ -243,8 +257,10 @@ def run_engine():
                         if new_brk:
                             stocks_str = ", ".join(new_brk)
                             msg = f"🔥 NEW BREAKOUT ALERT: {stocks_str} crossed PDH/PDL!"
-                            send_telegram(msg)
-                            notification_history.append(f"[{datetime.now(ZoneInfo('Asia/Kolkata')).strftime('%H:%M:%S')}] {msg}")
+                            if msg not in sent_messages or (time.time() - sent_messages[msg] > 600):
+                                send_telegram(msg)
+                                notification_history.append(f"[{datetime.now(ZoneInfo('Asia/Kolkata')).strftime('%H:%M:%S')}] {msg}")
+                                sent_messages[msg] = time.time()
                     prev_brk = current_brk
                     
             state = {

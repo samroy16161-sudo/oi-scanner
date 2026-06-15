@@ -82,14 +82,17 @@ def get_real_nse_data():
 
 def get_sector_performance(session):
     try:
-        r = session.get(f"https://www.nseindia.com/api/allIndices?v={int(time.time())}", timeout=10)
+        session.headers.update({'Referer': 'https://www.nseindia.com/market-data/live-market-indices'})
+        r = session.get(f"https://www.nseindia.com/api/allIndices?v={int(time.time() * 1000)}", timeout=10)
         if r.status_code == 200:
             data = r.json().get('data', [])
-            sectors = ["NIFTY BANK", "NIFTY AUTO", "NIFTY FIN SERVICE", "NIFTY FMCG", "NIFTY IT", "NIFTY MEDIA", "NIFTY METAL", "NIFTY PHARMA", "NIFTY PSU BANK", "NIFTY REALTY"]
+            sectors = ["NIFTY BANK", "NIFTY AUTO", "NIFTY FINANCIAL SERVICES", "NIFTY FMCG", "NIFTY IT", "NIFTY MEDIA", "NIFTY METAL", "NIFTY PHARMA", "NIFTY PSU BANK", "NIFTY REALTY"]
             sector_data = []
             for item in data:
                 if item['index'] in sectors:
-                    sector_data.append({'Sector': item['index'].replace('NIFTY ', ''), '% Change': item['percentChange']})
+                    name = item['index'].replace('NIFTY ', '')
+                    if name == "FINANCIAL SERVICES": name = "FIN SERVICE"
+                    sector_data.append({'Sector': name, '% Change': float(item['percentChange'])})
             df = pd.DataFrame(sector_data)
             if not df.empty: df = df.sort_values(by='% Change', ascending=True)
             return df

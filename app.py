@@ -77,19 +77,19 @@ def display_live_dashboard(selected_page):
                     selected_sector = event['selection']['points'][0].get('y')
                     
         with chart_col2:
-            st.markdown("<h4 style='text-align: center;'>Sector Stocks (Top Spurts)</h4>", unsafe_allow_html=True)
+            st.markdown("<h4 style='text-align: center;'>Sector Stocks (Price % Change)</h4>", unsafe_allow_html=True)
             if selected_sector:
                 st.caption(f"**{selected_sector}**")
-                all_stocks_df = pd.DataFrame(state.get('all_stocks_data', []))
+                live_stocks_df = pd.DataFrame(state.get('live_fo_stocks', []))
                 matched_key = next((k for k in SECTOR_MAP.keys() if selected_sector.upper() in k), None)
-                if matched_key and not all_stocks_df.empty:
+                if matched_key and not live_stocks_df.empty:
                     sector_stocks = SECTOR_MAP.get(matched_key, [])
-                    s_df = all_stocks_df[all_stocks_df['Stock'].isin(sector_stocks)].copy()
+                    s_df = live_stocks_df[live_stocks_df['Stock'].isin(sector_stocks)].copy()
                     if not s_df.empty:
-                        s_df = s_df.sort_values(by='Today_Sort', ascending=True)
-                        fig2 = px.bar(s_df, y='Stock', x='Today_Sort', text='Today_Sort', orientation='h')
+                        s_df = s_df.sort_values(by='Price_Change', ascending=True)
+                        fig2 = px.bar(s_df, y='Stock', x='Price_Change', text='Price_Change', orientation='h')
                         fig2.update_traces(
-                            marker_color=['#00C853' if x >= 0 else '#D50000' for x in s_df['Today_Sort']], 
+                            marker_color=['#00C853' if x >= 0 else '#D50000' for x in s_df['Price_Change']], 
                             texttemplate='<b>%{y}</b><br>%{text:+.2f}%', 
                             textposition='auto',
                             textangle=0,
@@ -225,7 +225,6 @@ def main():
         else:
             st.write("No notifications yet.")
             
-    # Ye function har 60 second me auto-run hoga, aur chart update karega!
     display_live_dashboard(selected_page)
 
 def start_engine():
